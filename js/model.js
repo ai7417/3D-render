@@ -63,8 +63,15 @@ const OUTLINE = roofOutline();
 const [A, B, C, D, E] = OUTLINE;
 const EXISTING_FRONT_LEFT = { x: A.x, z: C.z };
 const BOUNDS = roofBounds();
+const ROOM_BACK_LEFT = { x: ROOM_X1, z: A.z };
 
 function v3(x, y, z) { return new THREE.Vector3(x, y, z); }
+function lerpPlan(a, b, t) {
+  return {
+    x: a.x + (b.x - a.x) * t,
+    z: a.z + (b.z - a.z) * t,
+  };
+}
 
 export function roofY(z) {
   const t = (z - BOUNDS.minZ) / (BOUNDS.maxZ - BOUNDS.minZ);
@@ -105,39 +112,27 @@ function polygonSurface(points, yOffset, matKey, reverse = false) {
   return mesh;
 }
 
-function sampleEdge(a, b, count, includeStart = true, includeEnd = true) {
-  const pts = [];
-  const steps = count + (includeStart ? 1 : 0) + (includeEnd ? 1 : 0) - 1;
-  const start = includeStart ? 0 : 1;
-  const end = includeEnd ? steps : steps - 1;
-  for (let i = start; i <= end; i++) {
-    const t = steps <= 0 ? 0 : i / steps;
-    pts.push({
-      x: a.x + t * (b.x - a.x),
-      z: a.z + t * (b.z - a.z),
-    });
-  }
-  return pts;
-}
-
-function uniquePoints(points) {
-  const seen = new Map();
-  points.forEach((p) => {
-    const key = `${p.x.toFixed(3)}:${p.z.toFixed(3)}`;
-    if (!seen.has(key)) seen.set(key, p);
-  });
-  return [...seen.values()];
-}
-
 function postLocations() {
-  const backOpenEnd = { x: ROOM_X1, z: A.z };
-  const pts = [
-    ...sampleEdge(A, backOpenEnd, STRUCTURE.backPosts, true, false),
-    ...sampleEdge(EXISTING_FRONT_LEFT, D, STRUCTURE.frontPosts, true, true),
-    ...sampleEdge(A, E, STRUCTURE.leftPosts, true, true),
-    ...sampleEdge(D, E, STRUCTURE.diagonalPosts, false, true),
+  // Perimeter-only support layout:
+  // the enclosed room corners carry the right side, while only four open-bay
+  // posts remain to keep a clean two-car parking zone.
+  return [
+    A,
+    EXISTING_FRONT_LEFT,
+    E,
+    lerpPlan(D, E, 0.52),
   ];
-  return uniquePoints(pts);
+}
+
+function screenPanel(a, b, height, matKey = "cladding", tag = "screen") {
+  return member(
+    v3(a.x, height / 2, a.z),
+    v3(b.x, height / 2, b.z),
+    30,
+    height * 1000,
+    matKey,
+    tag
+  );
 }
 
 function addRectStrip(group, x1, z1, x2, z2, centerY) {
@@ -171,6 +166,7 @@ export function buildModel() {
   root.name = "ShedUpgrade";
   root.add(buildFoundation());
   root.add(buildStructure());
+  root.add(buildRoofCover());
   root.add(buildCladding());
   root.add(buildContext());
   return root;
@@ -261,12 +257,12 @@ function buildStructure() {
 
   // Perimeter beams following the upgraded roof
   const top = (p) => v3(p.x, roofY(p.z), p.z);
-  add(top(A), top(B), 90, 240, "glulam", "beam-back");
-  add(top(B), top(C), 90, 240, "glulam", "beam-right");
-  add(top(C), top(D), 90, 240, "glulam", "beam-room-front");
-  add(top(D), top(E), 90, 240, "glulam", "beam-diagonal");
-  add(top(E), top(A), 90, 240, "glulam", "beam-left");
-  add(top(EXISTING_FRONT_LEFT), top(D), 90, 240, "glulam", "beam-existing-front");
+  add(top(A), top(B), STRUCTURE.beam.b, STRUCTURE.beam.h, "glulam", "beam-back");
+  add(top(B), top(C), STRUCTURE.beam.b, STRUCTURE.beam.h, "glulam", "beam-right");
+  add(top(C), top(D), STRUCTURE.beam.b, STRUCTURE.beam.h, "glulam", "beam-room-front");
+  add(top(D), top(E), STRUCTURE.beam.b, STRUCTURE.beam.h, "glulam", "beam-diagonal");
+  add(top(E), top(A), STRUCTURE.beam.b, STRUCTURE.beam.h, "glulam", "beam-left");
+  add(top(EXISTING_FRONT_LEFT), top(D), STRUCTURE.beam.b, STRUCTURE.beam.h, "glulam", "beam-existing-front");
 
   postLocations().forEach(({ x, z }) => {
     add(v3(x, 0, z), v3(x, roofY(z) - 0.12, z), 140, 140, "post", "post");
@@ -302,6 +298,7 @@ function buildCladding() {
   const g = new THREE.Group();
   g.name = "cladding";
   const outOff = 0.045;
+  const partialSideScreenEnd = lerpPlan(D, E, STRUCTURE.sideScreenFraction);
 
   const backWall = new THREE.Mesh(
     new THREE.BoxGeometry(BUILDING.roomWidth + 0.09, roofY(ROOM_Z1), 0.022),
@@ -339,12 +336,11 @@ function buildCladding() {
   handle.position.set(doorCenterX + pd.w / 2 - 0.08, 1.02, ROOM_Z2 + outOff + 0.07);
   g.add(handle);
 
-  const roofTop = polygonSurface(OUTLINE, 0, "roofMetal");
-  roofTop.userData.tag = "roof-metal";
-  g.add(roofTop);
+  const backScreen = screenPanel(A, ROOM_BACK_LEFT, STRUCTURE.screenHeightBack, "cladding", "screen-back");
+  if (backScreen) g.add(backScreen);
 
-  const soffit = polygonSurface(OUTLINE, -0.22, "fascia", true);
-  g.add(soffit);
+  const sideScreen = screenPanel(D, partialSideScreenEnd, STRUCTURE.screenHeightSide, "cladding", "screen-side");
+  if (sideScreen) g.add(sideScreen);
 
   const fasciaPairs = [
     [A, B], [B, C], [C, D], [D, E], [E, A],
@@ -385,6 +381,35 @@ function buildCladding() {
     pipe.position.set(p.x, (roofY(p.z) - 0.30) / 2, p.z);
     g.add(pipe);
   });
+
+  return g;
+}
+
+function buildRoofCover() {
+  const g = new THREE.Group();
+  g.name = "roofCover";
+
+  const roofTop = polygonSurface(OUTLINE, 0.012, "roofMetal");
+  roofTop.userData.tag = "roof-metal";
+  g.add(roofTop);
+
+  const soffit = polygonSurface(OUTLINE, -0.18, "fascia", true);
+  soffit.userData.tag = "roof-soffit";
+  g.add(soffit);
+
+  for (let x = A.x + STRUCTURE.seamSpacing / 2; x <= B.x - 0.05; x += STRUCTURE.seamSpacing) {
+    const zEnd = roofFrontZAtX(x);
+    if (zEnd - A.z < 0.8) continue;
+    const seam = member(
+      v3(x, roofY(A.z) + 0.022, A.z + 0.03),
+      v3(x, roofY(zEnd) + 0.022, zEnd - 0.06),
+      18,
+      14,
+      "roofMetal",
+      "standing-seam"
+    );
+    if (seam) g.add(seam);
+  }
 
   return g;
 }
@@ -437,24 +462,44 @@ function buildContext() {
   houseRoof.position.set(-9, 4.6, 3);
   g.add(houseRoof);
 
-  const car = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.8, 1.55, 4.4),
-    new THREE.MeshStandardMaterial({ color: 0x3e4146, roughness: 0.55, metalness: 0.7 })
-  );
-  body.position.y = 0.85;
-  car.add(body);
-  for (const [dx, dz] of [[-0.8, -1.5], [0.8, -1.5], [-0.8, 1.5], [0.8, 1.5]]) {
-    const wheel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.33, 0.33, 0.22, 16),
-      new THREE.MeshStandardMaterial({ color: 0x101214 })
+  const buildCar = (color) => {
+    const car = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.84, 1.50, 4.55),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.48, metalness: 0.72 })
     );
-    wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(dx, 0.33, dz);
-    car.add(wheel);
-  }
-  car.position.set(2.8, 0, 4.3);
-  g.add(car);
+    body.position.y = 0.84;
+    car.add(body);
+
+    const glass = new THREE.Mesh(
+      new THREE.BoxGeometry(1.48, 0.68, 2.10),
+      mat("glass")
+    );
+    glass.position.set(0, 1.32, -0.15);
+    car.add(glass);
+
+    for (const [dx, dz] of [[-0.82, -1.56], [0.82, -1.56], [-0.82, 1.56], [0.82, 1.56]]) {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.33, 0.33, 0.22, 16),
+        new THREE.MeshStandardMaterial({ color: 0x101214 })
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(dx, 0.33, dz);
+      car.add(wheel);
+    }
+
+    return car;
+  };
+
+  const carA = buildCar(0xe3e7ec);
+  carA.position.set(1.55, 0, 2.05);
+  carA.rotation.y = -0.46;
+  g.add(carA);
+
+  const carB = buildCar(0x7a8794);
+  carB.position.set(2.85, 0, 5.00);
+  carB.rotation.y = -0.36;
+  g.add(carB);
 
   return g;
 }

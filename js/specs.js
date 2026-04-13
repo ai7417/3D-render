@@ -11,7 +11,7 @@ const fmt = (n, d = 2) => Number(n).toFixed(d);
 
 export function computeSpecs() {
   const d = derived();
-  const [A, B, C, D, E] = roofOutline();
+  const [A, , C, D, E] = roofOutline();
 
   const s = LOADS.mu1 * LOADS.Ce * LOADS.Ct * LOADS.sk;
   const wUp = Math.abs(LOADS.cpe_uplift) * LOADS.qp;
@@ -30,18 +30,19 @@ export function computeSpecs() {
   const fmd = (24 * 0.9) / 1.3;
   const rafterUtil = sigmaRaf / fmd;
 
-  const diagonalSpan = d.diagonal / 5;
-  const backSpan = (BUILDING.carportWidth + ROOF_PLAN.overhangLeft) / 4;
+  const diagonalSpan = d.diagonal / 2;
+  const backSpan = ROOMLESS_BACK_SPAN();
   const worstBeamSpan = Math.max(diagonalSpan, backSpan);
   const beamTrib = 2.4;
   const wBeam = uls * beamTrib;
   const MBeam = wBeam * worstBeamSpan * worstBeamSpan / 8;
   const WyBeam = (STRUCTURE.beam.b * STRUCTURE.beam.h ** 2) / 6;
   const sigmaBeam = MBeam * 1e6 / WyBeam;
-  const fmdGlu = (24 * 0.9) / 1.25;
+  const beamStrength = STRUCTURE.beam.grade.startsWith("GL32") ? 32 : 24;
+  const fmdGlu = (beamStrength * 0.9) / 1.25;
   const beamUtil = sigmaBeam / fmdGlu;
 
-  const openPosts = 12;
+  const openPosts = STRUCTURE.postCount;
   const postTrib = d.openArea / openPosts;
   const NEd = uls * postTrib;
   const APost = STRUCTURE.post.b * STRUCTURE.post.h;
@@ -58,6 +59,11 @@ export function computeSpecs() {
 
   return {
     derived: d,
+    support: {
+      primaryPosts: openPosts,
+      worstBeamSpan: fmt(worstBeamSpan, 2),
+      concept: "4 perimeter posts + enclosed room corners + transfer beams",
+    },
     loads: {
       snow_s:  { val: fmt(s, 2), unit: "kN/m²", note: "EN 1991-1-3 Eq.5.1" },
       wind_up: { val: fmt(wUp, 2), unit: "kN/m²", note: "EN 1991-1-4, Cpe edge" },
@@ -75,7 +81,7 @@ export function computeSpecs() {
         pass: rafterUtil < 1.0,
       },
       {
-        name: "90×240 GL24h beam between posts",
+        name: `${STRUCTURE.beam.b}×${STRUCTURE.beam.h} ${STRUCTURE.beam.grade}`,
         span: `${fmt(worstBeamSpan, 2)} m`,
         sigma: `${fmt(sigmaBeam, 1)} N/mm²`,
         cap: `${fmt(fmdGlu, 1)} N/mm²`,
@@ -111,6 +117,7 @@ export function computeSpecs() {
       { item: "Roof U-value ≤ 0.20 W/m²K", pass: ENVELOPE.roofUvalue <= 0.20 },
       { item: "Roof pitch for drainage ≥ 4°", pass: d.pitchDeg >= 4.0 },
       { item: "Open bay width fits two cars (≥ 5.50 m)", pass: BUILDING.carportWidth >= 5.5 },
+      { item: "Primary open-bay supports limited to 4 perimeter posts", pass: openPosts <= 4 },
       { item: "Left-side open bay depth ≥ 6.5 m", pass: E.z - A.z >= 6.5 },
       { item: "Continuous gutter to soakaway", pass: SAFETY.drainage.length > 0 },
     ],
@@ -119,21 +126,25 @@ export function computeSpecs() {
   };
 }
 
+function ROOMLESS_BACK_SPAN() {
+  return BUILDING.carportWidth + ROOF_PLAN.overhangLeft;
+}
+
 function computeQuantities(d) {
   const roomPerimeter = 2 * (BUILDING.roomWidth + BUILDING.roomDepth);
   const avgRoomHeight = (BUILDING.wallHeightBack + BUILDING.wallHeightFront) / 2;
   const wallArea = roomPerimeter * avgRoomHeight;
   const studCount = Math.ceil(roomPerimeter / (STRUCTURE.stud.spacing / 1000)) + 6;
-  const postCount = 12;
+  const postCount = STRUCTURE.postCount;
 
   return [
     ["Strip footing concrete to enclosed room", `${fmt(FOUNDATION.stripWidth * FOUNDATION.stripDepth * roomPerimeter, 2)} m³`],
     ["Concrete piers to open bay posts", `${postCount} pcs Ø${FOUNDATION.pierDiameter * 1000}×${FOUNDATION.pierDepth * 1000} mm`],
     ["Sill plate 45×145 PT", `${fmt(roomPerimeter, 1)} m`],
     ["Studs 45×145 C24", `${studCount} pcs`],
-    ["Posts 140×140 PT", `${postCount} pcs`],
+    ["Posts 140×140 PT", `${postCount} pcs, perimeter only`],
     ["Rafters 45×195 C24", `existing + upgrade zones, total ≈ ${fmt(d.roofedArea / 0.6, 1)} m`],
-    ["Glulam GL24h 90×240", `${fmt(d.roofPerimeter + (BUILDING.carportWidth + ROOF_PLAN.overhangLeft), 1)} m`],
+    [`${STRUCTURE.beam.grade} ${STRUCTURE.beam.b}×${STRUCTURE.beam.h}`, `${fmt(d.roofPerimeter + (BUILDING.carportWidth + ROOF_PLAN.overhangLeft), 1)} m`],
     ["OSB/3 wall sheathing", `${fmt(wallArea, 1)} m²`],
     ["OSB/3 roof sheathing", `${fmt(d.roofedArea, 1)} m²`],
     ["Mineral wool 145 mm wall", `${fmt(wallArea, 1)} m²`],

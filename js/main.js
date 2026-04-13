@@ -72,7 +72,7 @@ document.getElementById("meta-date").textContent = new Date().toISOString().slic
 
 const hudDims = document.getElementById("hud-dims");
 const d = derived();
-hudDims.textContent = `${PROJECT.id} · ${BUILDING.totalLength.toFixed(3)} m measured shed · open bay ${d.openArea.toFixed(1)} m² · roof ${d.roofedArea.toFixed(1)} m² · EE zone ${PROJECT.snowZone}`;
+hudDims.textContent = `${PROJECT.id} · ${BUILDING.totalLength.toFixed(3)} m measured shed · 2-car open bay ${d.openArea.toFixed(1)} m² · roof ${d.roofedArea.toFixed(1)} m² · EE zone ${PROJECT.snowZone}`;
 
 function wireViewButtons() {
   const views = {
