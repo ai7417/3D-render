@@ -11,7 +11,7 @@ export const PROJECT = {
   designCode: "EN 1990 / EN 1991 / EN 1995 (Eurocode) + Ehitusseadustik",
   snowZone: "II",
   terrainCat: "II",
-  rev: "B",
+  rev: "C",
 };
 
 // ---------- Existing measured building --------------------------------------
@@ -50,12 +50,13 @@ export const STRUCTURE = {
   stud:   { b: 45,  h: 145, spacing: 600,  grade: "C24" },
   topPlate:{b: 45,  h: 145, spacing: null, grade: "C24" },
   rafter: { b: 45,  h: 195, spacing: 600,  grade: "C24" },
-  beam:   { b: 90,  h: 240, grade: "GL24h" },
+  beam:   { b: 140, h: 360, grade: "GL32h transfer beam" },
   post:   { b: 140, h: 140, grade: "C24 PT" },
-  backPosts: 3,
-  frontPosts: 4,
-  leftPosts: 3,
-  diagonalPosts: 4,
+  postCount: 4,
+  seamSpacing: 0.42,
+  screenHeightBack: 2.10,
+  screenHeightSide: 1.80,
+  sideScreenFraction: 0.42,
 };
 
 export const FOUNDATION = {
@@ -136,7 +137,7 @@ export const MATERIALS = {
   glulam:      { color: 0xd9b27a, label: "Glulam GL24h beam" },
   post:        { color: 0x8b6b3d, label: "Post 140×140 PT" },
   cladding:    { color: 0x4f6a4c, label: "Larch cladding (stained)" },
-  roofMetal:   { color: 0x2b2f33, label: "Standing-seam metal RAL 7024" },
+  roofMetal:   { color: 0x2b2f33, label: "Valtsplekk katusekate RAL 7024" },
   fascia:      { color: 0x3a3f47, label: "Steel fascia" },
   glass:       { color: 0x8fb7d4, label: "Glazing" },
   door:        { color: 0x2c2f36, label: "Insulated door" },

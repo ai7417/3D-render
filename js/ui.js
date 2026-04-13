@@ -33,7 +33,7 @@ export function populateSpecs() {
     <h3>Geometry</h3>
     <dl>
       <dt>Measured existing shed</dt><dd>${BUILDING.totalLength.toFixed(3)} × ${BUILDING.depth.toFixed(3)} m</dd>
-      <dt>Open left bay</dt><dd>${BUILDING.carportWidth.toFixed(3)} m wide</dd>
+      <dt>Open left bay</dt><dd>${BUILDING.carportWidth.toFixed(3)} m wide for 2 cars</dd>
       <dt>Enclosed right room</dt><dd>${BUILDING.roomWidth.toFixed(3)} × ${BUILDING.roomDepth.toFixed(3)} m</dd>
       <dt>Room usable area</dt><dd>${d.roomUsableArea.toFixed(1)} m²</dd>
       <dt>Existing roofed rectangle</dt><dd>${d.existingRectArea.toFixed(1)} m²</dd>
@@ -42,6 +42,7 @@ export function populateSpecs() {
       <dt>Open carport area</dt><dd>${d.openArea.toFixed(1)} m²</dd>
       <dt>Diagonal upgrade edge</dt><dd>${d.diagonal.toFixed(2)} m</dd>
       <dt>Mono-pitch</dt><dd>${d.pitchDeg.toFixed(1)}°</dd>
+      <dt>Open-bay supports</dt><dd>${s.support.primaryPosts} perimeter posts + room walls</dd>
     </dl>
 
     <h3>Loads (Eurocode)</h3>
@@ -61,11 +62,13 @@ export function populateSpecs() {
 
     <h3>Envelope</h3>
     <dl>
+      <dt>Roof cover</dt><dd>Valtsplekk standing seam</dd>
       <dt>Wall U-value</dt><dd>${ENVELOPE.wallUvalue} W/m²K</dd>
       <dt>Roof U-value</dt><dd>${ENVELOPE.roofUvalue} W/m²K</dd>
     </dl>
     <div class="note">Wall: ${ENVELOPE.wall.slice(0, 3).join(" / ")}…</div>
     <div class="note">Roof: ${ENVELOPE.roof.slice(0, 3).join(" / ")}…</div>
+    <div class="note">Support concept: oversized transfer beams and the enclosed room corners carry the roof so the two-car bay stays open.</div>
 
     <h3>Foundation</h3>
     <dl>
@@ -130,6 +133,9 @@ function applyLayer(layer, on, scene, model, dims) {
     case "cladding":
       find("cladding").visible = on;
       break;
+    case "roofCover":
+      find("roofCover").visible = on;
+      break;
     case "structure":
       find("structure").visible = on;
       break;
@@ -161,7 +167,7 @@ function applyLayer(layer, on, scene, model, dims) {
 }
 
 function explodeView(model, amount) {
-  const groups = { foundation: -1.0, structure: 0.0, cladding: 1.0 };
+  const groups = { foundation: -1.0, structure: 0.0, cladding: 0.9, roofCover: 1.4 };
   Object.entries(groups).forEach(([name, mult]) => {
     const g = model.getObjectByName(name);
     if (g) g.position.y = mult * amount;
